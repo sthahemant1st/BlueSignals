@@ -21,9 +21,9 @@
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 	import Darwin
 #elseif canImport(Glibc)
-import Glibc
+    import Glibc
 #elseif canImport(Musl)
-import Musl
+    import Musl
 #endif
 
 import Foundation
@@ -92,8 +92,12 @@ public class Signals {
                 return Int32(SIGPROF)
             case .winch:
                 return Int32(SIGWINCH)
-            case .info:
-                return Int32(SIGINFO)
+
+            #if os(Linux)
+            case .info: return Int32(SIGUSR1)
+            #else
+            case .info: return Int32(SIGINFO)
+            #endif
 			case .user(let sig):
 				return Int32(sig)
 				
@@ -119,7 +123,11 @@ public class Signals {
             case Int(SIGIO): self = .io
             case Int(SIGPROF): self = .prof
             case Int(SIGWINCH): self = .winch
+#if os(Linux)
+#else
             case Int(SIGINFO): self = .info
+#endif
+            
 
             default:
                 self = .user(rawValue)
@@ -156,13 +164,22 @@ public class Signals {
 				sigaction(signal.rawValue, actionPointer, nil)
 			}
 		
-		#elseif os(Linux)
-	
-			var sigAction = sigaction()
-	
-			sigAction.__sigaction_handler = unsafeBitCast(action, to: sigaction.__Unnamed_union___sigaction_handler.self)
-	
-			_ = sigaction(signal.rawValue, &sigAction, nil)
+//		#elseif os(Linux)
+//	
+//			var sigAction = sigaction()
+//	
+//			sigAction.__sigaction_handler = unsafeBitCast(action, to: sigaction.__Unnamed_union___sigaction_handler.self)
+//	
+//			_ = sigaction(signal.rawValue, &sigAction, nil)
+        #elseif canImport(Glibc)
+
+            var sigAction = sigaction()
+
+            sigAction.__sigaction_handler = unsafeBitCast(action, to: sigaction.__Unnamed_union___sigaction_handler.self)
+
+            _ = sigaction(signal.rawValue, &sigAction, nil)
+        #else
+            // Musl: Signal setup is not supported
 	
 		#endif
 	}
@@ -205,11 +222,13 @@ public class Signals {
 		#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 		
 			_ = Darwin.raise(signal.rawValue)
-		
-		#elseif os(Linux)
-		
-			_ = Glibc.raise(signal.rawValue)
-		
+//        #elseif os(Linux)
+//
+//            _ = Glibc.raise(signal.rawValue)
+        #elseif canImport(Glibc)
+            _ = Glibc.raise(signal.rawValue)
+        #elseif canImport(Musl)
+            _ = Musl.raise(signal.rawValue)
 		#endif
 	}
 	
@@ -223,10 +242,13 @@ public class Signals {
 		#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 			
 			_ = Darwin.signal(signal.rawValue, SIG_IGN)
-			
-		#elseif os(Linux)
-			
-			_ = Glibc.signal(signal.rawValue, SIG_IGN)
+//        #elseif os(Linux)
+//
+//            _ = Glibc.signal(signal.rawValue, SIG_IGN)
+        #elseif canImport(Glibc)
+            _ = Glibc.signal(signal.rawValue, SIG_IGN)
+        #elseif canImport(Musl)
+            _ = Musl.signal(signal.rawValue, SIG_IGN)
 			
 		#endif
 	}
@@ -241,10 +263,13 @@ public class Signals {
 		#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 			
 			_ = Darwin.signal(signal.rawValue, SIG_DFL)
-			
-		#elseif os(Linux)
-			
-			_ = Glibc.signal(signal.rawValue, SIG_DFL)
+//        #elseif os(Linux)
+//
+//            _ = Glibc.signal(signal.rawValue, SIG_DFL)
+        #elseif canImport(Glibc)
+            _ = Glibc.signal(signal.rawValue, SIG_IGN)
+        #elseif canImport(Musl)
+            _ = Musl.signal(signal.rawValue, SIG_IGN)
 			
 		#endif
 	}
