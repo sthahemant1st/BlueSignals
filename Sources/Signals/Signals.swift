@@ -20,10 +20,12 @@
 
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 	import Darwin
-#elseif canImport(Glibc)
-    import Glibc
-#elseif canImport(Musl)
+#elseif os(Linux)
+    #if canImport(Musl)
     import Musl
+    #else
+    import Glibc
+    #endif
 #endif
 
 import Foundation
@@ -93,11 +95,15 @@ public class Signals {
             case .winch:
                 return Int32(SIGWINCH)
 
-            #if os(Linux)
-            case .info: return Int32(SIGUSR1)
-            #else
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || canImport(Glibc)
             case .info: return Int32(SIGINFO)
-            #endif
+#elseif os(Linux)
+    #if canImport(Musl)
+            case .info: return Int32(SIGUSR1) // No SIGINFO signal in Musl. SIGUSR1 may be the best alternative for SIGINFO in Musl
+    #else
+            case .info: return Int32(SIGINFO)
+    #endif
+#endif
 			case .user(let sig):
 				return Int32(sig)
 				
@@ -123,12 +129,16 @@ public class Signals {
             case Int(SIGIO): self = .io
             case Int(SIGPROF): self = .prof
             case Int(SIGWINCH): self = .winch
-#if os(Linux)
-#else
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || canImport(Glibc)
             case Int(SIGINFO): self = .info
+#elseif os(Linux)
+    #if canImport(Musl)
+            // no SIGINFO in Musl
+    #else
+            case Int(SIGINFO): self = .info
+    #endif
 #endif
             
-
             default:
                 self = .user(rawValue)
             }
@@ -164,23 +174,17 @@ public class Signals {
 				sigaction(signal.rawValue, actionPointer, nil)
 			}
 		
-//		#elseif os(Linux)
-//	
-//			var sigAction = sigaction()
-//	
-//			sigAction.__sigaction_handler = unsafeBitCast(action, to: sigaction.__Unnamed_union___sigaction_handler.self)
-//	
-//			_ = sigaction(signal.rawValue, &sigAction, nil)
-        #elseif canImport(Glibc)
+        #elseif os(Linux)
+            #if canImport(Musl)
+                // Musl: sigAction is not supported or need more research for alternative
+            #else
+                var sigAction = sigaction()
 
-            var sigAction = sigaction()
+                sigAction.__sigaction_handler = unsafeBitCast(action, to: sigaction.__Unnamed_union___sigaction_handler.self)
 
-            sigAction.__sigaction_handler = unsafeBitCast(action, to: sigaction.__Unnamed_union___sigaction_handler.self)
-
-            _ = sigaction(signal.rawValue, &sigAction, nil)
-        #else
-            // Musl: Signal setup is not supported
-	
+                _ = sigaction(signal.rawValue, &sigAction, nil)
+            #endif
+            
 		#endif
 	}
 	
@@ -220,15 +224,13 @@ public class Signals {
 	public class func raise(signal: Signal) {
 		
 		#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
-		
 			_ = Darwin.raise(signal.rawValue)
-//        #elseif os(Linux)
-//
-//            _ = Glibc.raise(signal.rawValue)
-        #elseif canImport(Glibc)
-            _ = Glibc.raise(signal.rawValue)
-        #elseif canImport(Musl)
-            _ = Musl.raise(signal.rawValue)
+        #elseif os(Linux)
+            #if canImport(Musl)
+                _ = Musl.raise(signal.rawValue)
+            #else
+                _ = Glibc.raise(signal.rawValue)
+            #endif
 		#endif
 	}
 	
@@ -242,15 +244,13 @@ public class Signals {
 		#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 			
 			_ = Darwin.signal(signal.rawValue, SIG_IGN)
-//        #elseif os(Linux)
-//
-//            _ = Glibc.signal(signal.rawValue, SIG_IGN)
-        #elseif canImport(Glibc)
-            _ = Glibc.signal(signal.rawValue, SIG_IGN)
-        #elseif canImport(Musl)
-            _ = Musl.signal(signal.rawValue, SIG_IGN)
-			
-		#endif
+        #elseif os(Linux)
+            #if canImport(Musl)
+                _ = Musl.signal(signal.rawValue, SIG_IGN)
+            #else
+                _ = Glibc.signal(signal.rawValue, SIG_IGN)
+            #endif
+        #endif
 	}
 
 	///
@@ -261,17 +261,14 @@ public class Signals {
 	public class func restore(signal: Signal) {
 		
 		#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
-			
 			_ = Darwin.signal(signal.rawValue, SIG_DFL)
-//        #elseif os(Linux)
-//
-//            _ = Glibc.signal(signal.rawValue, SIG_DFL)
-        #elseif canImport(Glibc)
-            _ = Glibc.signal(signal.rawValue, SIG_IGN)
-        #elseif canImport(Musl)
-            _ = Musl.signal(signal.rawValue, SIG_IGN)
-			
-		#endif
+        #elseif os(Linux)
+            #if canImport(Musl)
+                _ = Musl.signal(signal.rawValue, SIG_DFL)
+            #else
+                _ = Glibc.signal(signal.rawValue, SIG_DFL)
+            #endif
+        #endif
 	}
 	
 }
